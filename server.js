@@ -6,6 +6,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const app = express();
 const port = process.env.PORT || 3000;
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const responseCache = new Map(); // Кэш ответов
 
 app.use(cors());
 app.use(express.json());
@@ -22,29 +23,45 @@ app.post('/api/chat', async (req, res) => {
             return res.status(400).json({ error: 'Message is required' });
         }
 
-        // ИСПОЛЬЗУЕМ GEMINI 1.5 PRO - ОТЛИЧНАЯ МОДЕЛЬ!
-        const model = genAI.getGenerativeModel({
-            model: 'gemini-1.5-pro',
-            generationConfig: {
-                temperature: 0.7,      // Креативность
-                maxOutputTokens: 1024, // Длина ответа
-            }
-        });
-        
+        // Проверка кэша
+        const cacheKey = message.toLowerCase().trim();
+        if (responseCache.has(cacheKey)) {
+            console.log('Возвращаем из кэша:', cacheKey);
+            return res.json(responseCache.get(cacheKey));
+        }
+
+        // ИСПОЛЬЗУЕМ GEMINI-1.0-PRO - больше лимитов
+        const model = genAI.getGenerativeModel({ model: 'gemini-1.0-pro' });
         const result = await model.generateContent(message);
         const response = await result.response;
         
-        res.json({ 
+        const responseData = {
             success: true,
-            response: response.text() 
-        });
+            response: response.text(),
+            cached: false
+        };
+        
+        // Сохраняем в кэш на 1 час
+        responseCache.set(cacheKey, { ...responseData, cached: true });
+        setTimeout(() => responseCache.delete(cacheKey), 60 * 60 * 1000);
+        
+        res.json(responseData);
         
     } catch (error) {
         console.error('Error:', error);
-        res.status(500).json({ 
-            success: false,
-            error: 'Internal server error: ' + error.message 
-        });
+        
+        if (error.message.includes('429') || error.message.includes('quota')) {
+            res.status(429).json({
+                success: false,
+                error: 'Достигнут лимит запросов. Попробуйте через 5 минут.',
+                details: 'Бесплатный тариф Gemini имеет ограничения'
+            });
+        } else {
+            res.status(500).json({
+                success: false,
+                error: 'Internal server error'
+            });
+        }
     }
 });
 
