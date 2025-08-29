@@ -27,8 +27,9 @@ app.post('/api/chat', async (req, res) => {
             return res.status(400).json({ error: 'Message is required' });
         }
 
-        // ИСПРАВЛЕННАЯ СТРОКА - используйте 'gemini-pro' вместо 'generate_pro'
-        const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+        // ИСПОЛЬЗУЙТЕ ДОСТУПНУЮ МОДЕЛЬ
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+        
         const result = await model.generateContent(message);
         const response = await result.response;
         
@@ -57,7 +58,6 @@ app.get('/', (req, res) => {
         <body>
             <h1>🚀 Server is running!</h1>
             <p>Use POST /api/chat for AI requests</p>
-            <p>Health: <a href="/health">/health</a></p>
         </body>
         </html>
     `);
